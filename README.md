@@ -9,6 +9,7 @@ por engenharia reversa do `hid.exe` original (ver `PROTOCOL.md`).
 
 - ✅ `profiles` — lê seus 5 `RSProfile*.pfd` e mostra DPI/LED/botões (sem USB, sem risco)
 - ✅ `probe` — só **lê** o mouse (GET_FEATURE). Seguro.
+- ✅ `readmem` — lê a memória do mouse (polling, botões, LED, macros mapeados; ver `PROTOCOL.md`)
 - ⚠️ `dry-run` / `apply` — escrita no hardware, **experimental**.
   Pacotes e ordem vieram do disassembly, mas cada mouse/firmware pode variar.
   Use `dry-run` primeiro, aplique com `--yes` e confira no uso.
@@ -27,12 +28,13 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ```bash
 ./x39.py profiles --dir "/mnt/SSD/OneDrive-Linux/Documents/X-39 Gaming Mouse"
-sudo ./x39.py probe
-sudo ./x39.py dry-run --dpi 500 1000 2000 3600 5350
-sudo ./x39.py apply --dpi 500 1000 2000 --yes
+./x39.py probe
+./x39.py dry-run --dpi 500 1000 2000 3600 5350
+./x39.py readmem 0x40 0x448      # perfil 1 e LED (só leitura)
 ```
 
-DPI em CPI (múltiplos de 50); o tool converte para `reg = CPI//50 - 1`.
+`apply --dpi` está **bloqueado**: a codificação de DPI no mouse ainda não fecha e o
+caminho antigo gravava em cima das macros (ver `PROTOCOL.md`).
 
 ## Arquivos
 

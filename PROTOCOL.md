@@ -41,8 +41,9 @@ Padrão do código: **SET `02 F2 SUB 00 P4 …` → GET `02 F2` → lê byte** d
 - Escrita: mesmo formato com payload (flag exata em confirmação).
 - Offsets-base por perfil, tabela em `hid.exe:0x47e58c`: **64, 256, 432, 608, 784**
   (na chamada soma +2 → 66, 258, 434, 610, 786; chunks internos de 6 B, passo 0x10).
-- Área de config geral lida em `411f10/412840`: base **`0x478`**, 20 grupos × 4 chunks
-  de 50 B (passo `0x32`), cobrindo `0x478–0x1418`.
+- Área lida em `411f10/412840`: base **`0x478`**, 20 grupos × 4 chunks
+  de 50 B (passo `0x32`), cobrindo `0x478–0x1418` = **20 slots de macro**
+  (200 B cada), não DPI — ver mapa de memória abaixo.
 
 ## Resposta do GET ID3 (confirmado em hardware, `readmem`)
 
@@ -51,8 +52,56 @@ Padrão do código: **SET `02 F2 SUB 00 P4 …` → GET `02 F2` → lê byte** d
 
 Bloco por perfil (dado+2, i.e. byte 10 da resposta) = **índice DPI ativo**:
 fábrica P0=1, P1–P4=3, e o hardware retorna `01, 03, 03, 03, 03`. ✔
-Bytes esparsos 00/01 ao redor = flags (enable/modo) — mapa completo via `readmem`
-varrendo `base, base+16, …`.
+Mapa completo abaixo; dump cru em `dumps/2026-10-11-readmem.txt`.
+
+## Mapa de memória (readmem 0x0000–0x0600, confirmado em hardware 2026-10-11)
+
+Tudo casado byte a byte com os 5 `RSProfile*.pfd`. Leitura: `./x39.py readmem OFF…`
+(cada GET traz 32 B a partir de OFF).
+
+| Endereço | Conteúdo | Confirmação |
+|---|---|---|
+| `0x1E` | `68 79` | ? (assinatura/versão?) |
+| `0x20–0x2B` | `01 00` ×6 | ? |
+| `0x2F–0x31` | `dc 05 c0` (`0x05DC`=1500) | ? |
+| `0x32` | **polling por perfil**, LE16 ×5: `1,2,2,2,2` | = `PollingRate` ✔ |
+| `0x3C` | `ff` | ? |
+| bases `0x40, 0x100, 0x1B0, 0x260, 0x310` | **bloco de perfil** (0xB0 B; P0 tem folga até 0x100) | |
+| `base+0` | nº de estágios DPI (`05`) | = `DPIStageNum` ✔ |
+| `base+2` | estágio DPI ativo (P0=`01`, P1–4=`03`) | = `DPI` ✔ |
+| `base+4` | 5 × 6 B: `[flag, ?, …]` — LE16 em +1: `0x16, 0x2D, 0x5A, 0x15C, 0x47C` | **não** bate com `CPI//50-1` (9,19,39,71,106) ✗ |
+| `base+0x22` | `01` em +0x22, +0x28, +0x2E | ? |
+| `base+0x40` | `14 00` (=20) + **tabela de botões**, 4 B/botão | ✔ (abaixo) |
+| fim do bloco | `ff ff ff ff` | terminador |
+| `0x400`, `0x420` | `ff 00 00 00 00 ff 00 ff 00 ff 00 ff ff ff 00 00 ff ff ff ff ff` (idênticos) | cores dos estágios DPI? |
+| `0x448` | **LED por perfil**, 8 B × 5 | ✔ (abaixo) |
+| `0x478+` | **macros**, 200 B/slot | formato = `MacroDB` ✔ |
+
+### Tabela de botões (`base+0x42`, 4 B por botão, mesma ordem do `.pfd`)
+
+| Código no mouse | Significado | `ButtonFunc` no .pfd |
+|---|---|---|
+| `81 00 00 00` / `82` / `83` | clique esq / dir / meio | 1 / 2 / 3 |
+| `84 00 00 00` | botão 4 (voltar) | 5 |
+| `85 00 00 00` | botão 5 (avançar) | 4 |
+| `90 00 KK 00` | tecla HID `KK` (ex. `47` ScrollLock, `5C–62` keypad, `1E–27` 1–0) | 6 (antes rotulado "DPI" por engano) |
+| `8E 01 CD 00` / `E9` / `EA` | consumer: play/pause / vol+ / vol− | 39 / 43 / 44 |
+| `99 81 03 00`, `8A`, `89` | ? | 12, 48, 49 |
+| `8B`, `8C`, `8D` | provavelmente perfil±/DPI (no fim da tabela) | 52/53? |
+
+A tabela tem 24 posições até o `ff ff ff ff`, mas o contador diz 20; as 4 a
+mais (`00`, `00`, `8B`, `8C`) não estão casadas com o `.pfd` ainda.
+
+### LED (`0x448 + 8*perfil`)
+
+`80 B G R MODO VELOC 01 ESTADO` — cor em **BGR**: `#FF0C79` → `79 0C FF`.
+`MODO=3` (`LedMode`), `VELOC=5` (`FlashState`/`BreathState`),
+`ESTADO` = `LedState` (P0=3, P1–4=2). ✔ nos 5 perfis.
+
+### Macros (`0x478+`)
+
+Eventos de 6 B: `84|04 KK 00 06 DD 00` — `84`=aperta, `04`=solta, `KK`=tecla HID,
+`DD` = atraso. Slots com passo 200 B (`0x478`, `0x540`, `0x608`, …).
 
 ## Família `02 F3` — escrita de campos (grupo `0xF3`)
 
@@ -87,21 +136,16 @@ Ferramentas de bancada: `w2 GRP SUB P3 P4 [extra] --yes`,
 `02 F1 02 02`, `02 F1 02 10`, `02 F1 xx 04`, `02 F1 xx 08`, `02 F5 …`
 (enviados no fim da sequência de gravação).
 
-## Bulk ID3 — `03 F2 off_lo off_hi 0x32 …`
+## Codificação de DPI — EM ABERTO
 
-Offset base **`0x478`**, passo **`0x32` (50)**, 4 chunks (`411f40`): tabela DPI.
-Offset/limites irmãos com `03 F3 … 0x20 …` (dados de perfil/botão).
+Nos `.pfd`, `DPIStageValue` (LE32 `[X, Y, en]` ×5) traz `(9,9) (19,19) (39,39)
+(71,71) (106,106)`, que pela fórmula da família LUOM (`CPI = (reg+1)*50`) dá
+500 / 1000 / 2000 / 3600 / 5350 CPI. **No mouse esses bytes não aparecem**:
+`base+4` traz `0x16, 0x2D, 0x5A, 0x15C, 0x47C`. Ou a codificação no fio é outra,
+ou os estágios ficam em outro endereço. `apply --dpi` está bloqueado até fechar.
 
-## Codificação de DPI (confirmada via .pfd + LUOM da mesma família)
-
-```
-reg = CPI // 50 - 1        (vai no fio)
-CPI = (reg + 1) * 50
-```
-
-Estágios de fábrica (`RSProfile1.pfd`, `DPIStageValue` como LE32
-`[X, Y, en]` ×5): `(9,9) (19,19) (39,39) (71,71) (106,106)` →
-**500 / 1000 / 2000 / 3600 / 5350 CPI**. `DPICurrentX/Y=14` → 750 CPI.
+A suposição antiga de que `0x478` (passo `0x32`, `411f40`) era a tabela DPI
+estava errada: é a área de macros.
 
 ## Arquivos de perfil `.pfd` (INI)
 
@@ -109,18 +153,22 @@ Estágios de fábrica (`RSProfile1.pfd`, `DPIStageValue` como LE32
 `DPI` (índice ativo), `DPICurrentX/Y`, `DPIStageNum`, `DPIStageValue`
 (hex LE32, 409 B), `LedMode1/State1/FlashState1/BreathState1/LedColor1`
 (int RGB), `ButtonAssigned0_N` (hex 190 B, byte0 espelha o último) +
-seções `[ButtonAssigned0_N]` com `ButtonFunc` (1=esq, 2=dir, 3=meio,
-4=voltar, 5=avançar, 6=DPI, 39/43/44=tecla, 52/53=perfil?).
+seções `[ButtonAssigned0_N]` com `ButtonFunc` (ver "Tabela de botões").
 
 Macros: `MacroDB/*.MSMACRO` (`MacroSetting_0` hex) + `MacroSet.MSDB`
 (índice). Upload via `04 F3` 1024 B.
 
-## O que falta confirmar em bancada (com sudo)
+## O que falta confirmar em bancada
 
-1. Qual SUB `F2` = polling rate (candidatos `0x2C/0x32/0x38/0x3D`) e seus valores.
-2. Byte exato da cor no pacote `02 F3` de LED + `LedMode` (1–3?).
-3. Ordem exata da sequência de apply (selects → stages → bulk → F3 → F1).
-4. `GET ID3/ID4/ID5` — o firmware responde? (permite backup do estado atual).
+1. **DPI**: trocar o estágio no botão do mouse e reler `base+0..0x20` —
+   ver qual byte muda e como os valores do `.pfd` viram os do mouse.
+2. Pacote de **escrita** do polling (o valor mora em `0x32`; falta o SET).
+3. Pacote de escrita do LED (o valor mora em `0x448`; falta o SET).
+4. Ordem exata da sequência de apply (selects → stages → bulk → F3 → F1).
+5. Significado dos códigos `99 81 03`, `89`, `8A`, `8B`–`8D` e dos campos `?` do mapa.
 
-Procedimento: `sudo ./x39.py probe` (só leituras), depois `dry-run`,
-depois `apply --dpi … --yes` conferindo o DPI no uso real.
+~~`GET ID3/ID4/ID5` — o firmware responde?~~ Sim (2026-10-11): ID2–ID6 respondem
+via hidraw e pyusb; `readmem` faz o backup do estado atual.
+
+Procedimento: `./x39.py probe` e `readmem` (só leitura), depois `dry-run`;
+escrita só depois do item correspondente acima estar confirmado.

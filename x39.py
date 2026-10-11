@@ -183,6 +183,13 @@ def cmd_apply(args):
         print('recusei: passe --yes para enviar ao hardware. '
               'rode dry-run antes.', file=sys.stderr)
         return 2
+    if args.dpi:
+        # o "bulk DPI" em 0x478 é a área de MACROS (readmem 2026-10-11) e
+        # a codificação de DPI no mouse não bate com CPI//50-1.
+        print('recusei: --dpi está bloqueado até fechar o protocolo de DPI '
+              '(gravaria por cima das macros). ver PROTOCOL.md.',
+              file=sys.stderr)
+        return 2
     plan = build_plan(args)
     t = P.open_transport(args.transport, args.hidraw)
     with t:

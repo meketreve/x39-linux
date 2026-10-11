@@ -286,10 +286,14 @@ def cpi_to_reg(cpi):
     return max(0, (int(cpi) // 50) - 1)
 
 
+# ButtonFunc do .pfd -> nome; entre parênteses o código que o mouse guarda
+# (casado com o readmem de 2026-10-11, ver PROTOCOL.md "Tabela de botões").
 BUTTON_FUNC_NAMES = {
-    1: 'clique-esq', 2: 'clique-dir', 3: 'clique-meio',
-    4: 'voltar', 5: 'avançar', 6: 'DPI',
-    39: 'tecla', 43: 'tecla', 44: 'tecla',
+    1: 'clique-esq (81)', 2: 'clique-dir (82)', 3: 'clique-meio (83)',
+    4: 'botão-5/avançar (85)', 5: 'botão-4/voltar (84)',
+    6: 'tecla (90 00 KK)',
+    12: '? (99 81 03)', 48: '? (8A)', 49: '? (89)',
+    39: 'play/pause (8E 01 CD)', 43: 'vol+ (8E 01 E9)', 44: 'vol- (8E 01 EA)',
     52: 'perfil?', 53: 'perfil?',
 }
 
