@@ -10,9 +10,24 @@ por engenharia reversa do `hid.exe` original (ver `PROTOCOL.md`).
 - ✅ `profiles` — lê seus 5 `RSProfile*.pfd` e mostra DPI/LED/botões (sem USB, sem risco)
 - ✅ `probe` — só **lê** o mouse (GET_FEATURE). Seguro.
 - ✅ `readmem` — lê a memória do mouse (polling, botões, LED, macros mapeados; ver `PROTOCOL.md`)
-- ⚠️ `dry-run` / `apply` — escrita no hardware, **experimental**.
-  Pacotes e ordem vieram do disassembly, mas cada mouse/firmware pode variar.
-  Use `dry-run` primeiro, aplique com `--yes` e confira no uso.
+- ✅ `w3` — escrita crua no canal bulk (`03 F3 off LEN dados`); vale na hora.
+  Testado em bancada mudando o valor de um estágio de DPI e restaurando.
+- ⚠️ `dry-run` / `apply` — **experimental**; pacotes vieram do disassembly.
+  `apply --dpi` está bloqueado (o caminho antigo gravava em cima das macros).
+
+### O que já se sabe do mouse (detalhes em `PROTOCOL.md`)
+
+| Item | Onde | Situação |
+|---|---|---|
+| Polling por perfil | `0x32` | leitura ✔, escrita a testar |
+| Estágio DPI ativo | `base+2` (0–4) | ✔ confirmado com o botão |
+| Valor de cada estágio | `base+4+6i+1` | ✔ linear, CPI ≈ V × 22,2 (estágios baixos) |
+| Byte extra dos estágios altos | `base+4+6i+2` | ❓ em aberto |
+| Botões | `base+0x42`, 4 B cada | leitura ✔ |
+| LED (BGR, modo, velocidade) | `0x448 + 8·perfil` | leitura ✔, escrita a testar |
+| Macros | `0x478+`, 200 B/slot | leitura ✔ |
+
+Bases dos perfis: `0x40, 0x100, 0x1B0, 0x260, 0x310`.
 
 ## Instalação
 
