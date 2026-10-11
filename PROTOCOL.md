@@ -63,12 +63,13 @@ Tudo casado byte a byte com os 5 `RSProfile*.pfd`. Leitura: `./x39.py readmem OF
 |---|---|---|
 | `0x1E` | `68 79` | ? (assinatura/versão?) |
 | `0x20–0x2B` | `01 00` ×6 | ? |
+| `0x2C` | `00` → `01` na 1ª troca de DPI pelo botão; não muda na 2ª | flag "alterado no mouse"? |
 | `0x2F–0x31` | `dc 05 c0` (`0x05DC`=1500) | ? |
 | `0x32` | **polling por perfil**, LE16 ×5: `1,2,2,2,2` | = `PollingRate` ✔ |
 | `0x3C` | `ff` | ? |
 | bases `0x40, 0x100, 0x1B0, 0x260, 0x310` | **bloco de perfil** (0xB0 B; P0 tem folga até 0x100) | |
 | `base+0` | nº de estágios DPI (`05`) | = `DPIStageNum` ✔ |
-| `base+2` | estágio DPI ativo (P0=`01`, P1–4=`03`) | = `DPI` ✔ |
+| `base+2` | estágio DPI ativo, 0-based (máx = `DPIStageNum-1` = 4); o botão de DPI grava aqui na hora | = `DPI` ✔; bancada 2026-10-11: perfil 2 `03`→`04` (máx)→`02` ✔ |
 | `base+4` | 5 × 6 B: `[flag, ?, …]` — LE16 em +1: `0x16, 0x2D, 0x5A, 0x15C, 0x47C` | **não** bate com `CPI//50-1` (9,19,39,71,106) ✗ |
 | `base+0x22` | `01` em +0x22, +0x28, +0x2E | ? |
 | `base+0x40` | `14 00` (=20) + **tabela de botões**, 4 B/botão | ✔ (abaixo) |
@@ -160,8 +161,9 @@ Macros: `MacroDB/*.MSMACRO` (`MacroSetting_0` hex) + `MacroSet.MSDB`
 
 ## O que falta confirmar em bancada
 
-1. **DPI**: trocar o estágio no botão do mouse e reler `base+0..0x20` —
-   ver qual byte muda e como os valores do `.pfd` viram os do mouse.
+1. **DPI**: o índice ativo já está confirmado (`base+2`). Falta a codificação
+   dos valores em `base+4` — próximo teste: mudar um estágio no app Windows
+   (ou VM) e reler, ou gravar um estágio com `w3` em `base+4` e medir.
 2. Pacote de **escrita** do polling (o valor mora em `0x32`; falta o SET).
 3. Pacote de escrita do LED (o valor mora em `0x448`; falta o SET).
 4. Ordem exata da sequência de apply (selects → stages → bulk → F3 → F1).
