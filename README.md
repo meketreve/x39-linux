@@ -1,0 +1,47 @@
+# x39-linux — configura o mouse X-39 no Linux
+
+Port experimental do app Windows `X-39 Gaming Mouse` (Holtek **04d9:fc55**)
+para Linux, via HID Feature Reports. Nenhuma ferramenta existente
+(libratbag/Piper/OpenRazer) suporta esse mouse — o protocolo foi extraído
+por engenharia reversa do `hid.exe` original (ver `PROTOCOL.md`).
+
+## Estado
+
+- ✅ `profiles` — lê seus 5 `RSProfile*.pfd` e mostra DPI/LED/botões (sem USB, sem risco)
+- ✅ `probe` — só **lê** o mouse (GET_FEATURE). Seguro.
+- ⚠️ `dry-run` / `apply` — escrita no hardware, **experimental**.
+  Pacotes e ordem vieram do disassembly, mas cada mouse/firmware pode variar.
+  Use `dry-run` primeiro, aplique com `--yes` e confira no uso.
+
+## Instalação
+
+```bash
+git clone https://github.com/meketreve/x39-linux && cd x39-linux
+pip install --break-system-packages pyusb   # só p/ fallback pyusb; hidraw não precisa
+sudo cp 99-x39-gaming-mouse.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+# desplugue e plugue o mouse (ou rode tudo com sudo)
+```
+
+## Uso
+
+```bash
+./x39.py profiles --dir "/mnt/SSD/OneDrive-Linux/Documents/X-39 Gaming Mouse"
+sudo ./x39.py probe
+sudo ./x39.py dry-run --dpi 500 1000 2000 3600 5350
+sudo ./x39.py apply --dpi 500 1000 2000 --yes
+```
+
+DPI em CPI (múltiplos de 50); o tool converte para `reg = CPI//50 - 1`.
+
+## Arquivos
+
+- `x39.py` — CLI
+- `x39proto.py` — transporte (hidraw/pyusb) + pacotes + parser `.pfd`
+- `PROTOCOL.md` — protocolo reverso e o que falta confirmar
+- `99-x39-gaming-mouse.rules` — udev (acesso sem sudo)
+
+## Ajuda a fechar o protocolo
+
+Rode `sudo ./x39.py probe` e me mande a saída + o que mudou no mouse
+após cada `apply`. Com 2–3 iterações dá pra cravar polling, LED e botões.
