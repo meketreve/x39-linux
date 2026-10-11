@@ -27,9 +27,9 @@ REPORT_LEN = {2: 16, 3: 64, 4: 256, 5: 1024, 6: 2048}
 IFACE_NUM = 2  # interface de controle (hidraw3 no setup atual)
 
 # ioctl hidraw (linux/hidraw.h): _IOC(dir,type,nr,len);
-# _IOC_READ=2 (GET), _IOC_WRITE=1 (SET)
-_HIDIOCGFEATURE = lambda l: (2 << 30) | (l << 16) | (ord('H') << 8) | 0x07
-_HIDIOCSFEATURE = lambda l: (1 << 30) | (l << 16) | (ord('H') << 8) | 0x06
+# os dois usam _IOC_WRITE|_IOC_READ = 3 (hidraw.h)
+_HIDIOCGFEATURE = lambda l: (3 << 30) | (l << 16) | (ord('H') << 8) | 0x07
+_HIDIOCSFEATURE = lambda l: (3 << 30) | (l << 16) | (ord('H') << 8) | 0x06
 
 
 # ---------------------------------------------------------------- transporte
