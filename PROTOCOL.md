@@ -70,7 +70,7 @@ Tudo casado byte a byte com os 5 `RSProfile*.pfd`. Leitura: `./x39.py readmem OF
 | bases `0x40, 0x100, 0x1B0, 0x260, 0x310` | **bloco de perfil** (0xB0 B; P0 tem folga até 0x100) | |
 | `base+0` | nº de estágios DPI (`05`) | = `DPIStageNum` ✔ |
 | `base+2` | estágio DPI ativo, 0-based (máx = `DPIStageNum-1` = 4); o botão de DPI grava aqui na hora | = `DPI` ✔; bancada 2026-10-11: perfil 2 `03`→`04` (máx)→`02` ✔ |
-| `base+4` | 5 × 6 B: `[flag, ?, …]` — LE16 em +1: `0x16, 0x2D, 0x5A, 0x15C, 0x47C` | **não** bate com `CPI//50-1` (9,19,39,71,106) ✗ |
+| `base+4` | 5 × 6 B `[EN, V, B2, 00, 00, 00]`: **V = valor do estágio** (linear), B2 = ? (`00,00,00,01,04`) | bancada ✔: V `5a`→`2d` no estágio 2 deixou igual ao estágio 1 |
 | `base+0x22` | `01` em +0x22, +0x28, +0x2E | ? |
 | `base+0x40` | `14 00` (=20) + **tabela de botões**, 4 B/botão | ✔ (abaixo) |
 | fim do bloco | `ff ff ff ff` | terminador |
@@ -103,6 +103,13 @@ mais (`00`, `00`, `8B`, `8C`) não estão casadas com o `.pfd` ainda.
 
 Eventos de 6 B: `84|04 KK 00 06 DD 00` — `84`=aperta, `04`=solta, `KK`=tecla HID,
 `DD` = atraso. Slots com passo 200 B (`0x478`, `0x540`, `0x608`, …).
+
+## Escrita bulk ID3 (confirmado em bancada 2026-10-11)
+
+`03 F3 off_lo off_hi LEN 00 00 00 dados[LEN]` — o byte 4 é o **tamanho** (também na
+leitura: `03 F2 off LEN` devolve exatamente LEN bytes). Após a escrita, o GET ID3
+devolve o ponteiro já avançado (`off+LEN`) e `fe ff` no campo de tamanho.
+Grava direto na config; o mouse aplica na hora.
 
 ## Família `02 F3` — escrita de campos (grupo `0xF3`)
 
@@ -137,7 +144,17 @@ Ferramentas de bancada: `w2 GRP SUB P3 P4 [extra] --yes`,
 `02 F1 02 02`, `02 F1 02 10`, `02 F1 xx 04`, `02 F1 xx 08`, `02 F5 …`
 (enviados no fim da sequência de gravação).
 
-## Codificação de DPI — EM ABERTO
+## Codificação de DPI — parcialmente confirmada
+
+**Bancada 2026-10-11:** gravar `V=2d` (valor do estágio 1) no estágio 2 do perfil
+ativo (`w3 0x110 012d00000000 --grp 0xF3 --flag 0x06`) deixou os dois estágios com
+a mesma velocidade, sem commit nem resselecionar — vale na hora. Restaurado para `5a`.
+
+Com os CPI do `.pfd`: `V = 0x16, 0x2D, 0x5A` ↔ 500 / 1000 / 2000 → **CPI ≈ V × 22,2**
+(`V ≈ CPI × 9/200`). Estágios 3 e 4 (`5C 01`, `7C 04` ↔ 3600 / 5350) não seguem isso só
+com V: o papel de **B2** está em aberto (multiplicador/faixa do sensor?).
+
+Antigo (abaixo), mantido como histórico:
 
 Nos `.pfd`, `DPIStageValue` (LE32 `[X, Y, en]` ×5) traz `(9,9) (19,19) (39,39)
 (71,71) (106,106)`, que pela fórmula da família LUOM (`CPI = (reg+1)*50`) dá
@@ -161,9 +178,8 @@ Macros: `MacroDB/*.MSMACRO` (`MacroSetting_0` hex) + `MacroSet.MSDB`
 
 ## O que falta confirmar em bancada
 
-1. **DPI**: o índice ativo já está confirmado (`base+2`). Falta a codificação
-   dos valores em `base+4` — próximo teste: mudar um estágio no app Windows
-   (ou VM) e reler, ou gravar um estágio com `w3` em `base+4` e medir.
+1. **DPI**: índice ativo (`base+2`) e valor V (`base+4+6i+1`) confirmados. Falta o
+   papel do byte B2 e a escala exata — medir contagens via evdev com V/B2 variados.
 2. Pacote de **escrita** do polling (o valor mora em `0x32`; falta o SET).
 3. Pacote de escrita do LED (o valor mora em `0x448`; falta o SET).
 4. Ordem exata da sequência de apply (selects → stages → bulk → F3 → F1).
